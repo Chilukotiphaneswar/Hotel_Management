@@ -1,0 +1,574 @@
+=====================================================================
+--    Hotel Management System|  END-TO-END MYSQL PROJECT
+-- =====================================================================
+--  Contents:
+--    PART 1  : Database & Table Creation (schema)
+--    PART 2  : Sample Data (INSERT statements)
+--    PART 3  : Indexes
+--    PART 4  : Views
+--    PART 5  : Stored Procedures
+--    PART 6  : Triggers (+ supporting stock_log table)
+--    PART 7  : Query Bank - Level 1 (Original Q1-Q4)   + Answers
+--    PART 8  : Query Bank - Level 2 (Original Q5-Q8)   + Answers
+--    PART 9  : Query Bank - Level 3 (Original Q9-Q11)  + Answers
+--    PART 10 : Demo calls for Views / Procedures / Triggers
+
+
+============================================
+PART 1  : Database & Table Creation (schema)
+=============================================
+
+CREATE DATABASE HotelManagement;
+USE HotelManagement;
+CREATE TABLE Customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_name VARCHAR(100),
+    phone VARCHAR(15),
+3
+    email VARCHAR(100)
+);
+
+CREATE TABLE Rooms (
+    room_id INT PRIMARY KEY AUTO_INCREMENT,
+    room_number INT UNIQUE,
+    room_type VARCHAR(50),
+    price DECIMAL(10,2)
+);
+
+CREATE TABLE Bookings (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT,
+    room_id INT,
+    check_in DATE,
+    check_out DATE,
+    FOREIGN KEY (customer_id)
+        REFERENCES Customers(customer_id),
+    FOREIGN KEY (room_id)
+        REFERENCES Rooms(room_id)
+);
+
+CREATE TABLE Payments (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    booking_id INT,
+    amount DECIMAL(10,2),
+    payment_date DATE,
+    payment_method VARCHAR(30),
+    FOREIGN KEY (booking_id)
+        REFERENCES Bookings(booking_id)
+);
+desc payments;
+desc customers;
+desc rooms;
+desc bookings;
+
+
+==========================================
+PART 2  : Sample Data (INSERT statements)
+===========================================
+
+INSERT INTO Customers (customer_name, phone, email)
+VALUES
+('Priya', '9876501111', 'priya@gmail.com'),
+('Kiran', '9876502222', 'kiran@gmail.com'),
+('Anjali', '9876503333', 'anjali@gmail.com'),
+('Rahul', '9876504444', 'rahul@gmail.com'),
+('Sneha', '9876505555', 'sneha@gmail.com'),
+('Arjun', '9876506666', 'arjun@gmail.com');
+
+INSERT INTO Customers
+(customer_name, phone, email)
+VALUES
+('Ravi', '9876543210', 'ravi@gmail.com'),
+('Suresh', '9876501234', 'suresh@gmail.com');
+select*from customers;
+
+INSERT INTO Rooms
+(room_number, room_type, price)
+VALUES
+(101, 'Single', 1500),
+(102, 'Double', 2500),
+(103, 'Deluxe', 4000),
+(104, 'Single', 1800),
+(105, 'Double', 2800),
+(106, 'Deluxe', 4500),
+(107, 'Suite', 6000),
+(108, 'Suite', 6500);
+select*from rooms;
+
+INSERT INTO Bookings
+(customer_id, room_id, check_in, check_out)
+VALUES
+(1, 1, '2026-10-26', '2026-10-28'),
+(2, 2, '2026-10-27', '2026-10-29'),
+(3, 3, '2026-10-28', '2026-10-30'),
+(4, 4, '2026-10-29', '2026-10-31'),
+(5, 5, '2026-11-01', '2026-11-03'),
+(6, 6, '2026-11-02', '2026-11-05'),
+(7, 7, '2026-11-04', '2026-11-06'),
+(8, 8, '2026-11-05', '2026-11-08');
+select*from Bookings;
+
+INSERT INTO Payments
+(booking_id, amount, payment_date, payment_method)
+VALUES
+(1, 3000, '2026-10-26', 'Cash'),
+(2, 5000, '2026-10-27', 'UPI'),
+(3, 8000, '2026-10-28', 'Card'),
+(4, 3600, '2026-10-29', 'Cash'),
+(5, 5600, '2026-11-01', 'UPI'),
+(6, 13500, '2026-11-02', 'Card'),
+(7, 12000, '2026-11-04', 'Cash'),
+(8, 19500, '2026-11-05', 'UPI');
+select*from Payments;
+
+show tables; 
+
+
+==================
+PART 3  : Indexes
+================== 
+
+CREATE INDEX idx_customer_name
+ON Customers(customer_name);
+
+CREATE INDEX idx_customer_email
+ON Customers(email);
+
+CREATE INDEX idx_room_type
+ON Rooms(room_type);
+
+CREATE INDEX idx_room_price
+ON Rooms(price);
+
+CREATE INDEX idx_booking_customer
+ON Bookings(customer_id);
+
+CREATE INDEX idx_booking_room
+ON Bookings(room_id);
+
+CREATE INDEX idx_booking_checkin
+ON Bookings(check_in);
+
+CREATE INDEX idx_payment_booking
+ON Payments(booking_id);
+
+CREATE INDEX idx_payment_date
+ON Payments(payment_date);
+
+CREATE INDEX idx_payment_method
+ON Payments(payment_method);
+
+SHOW INDEX FROM Customers;
+SHOW INDEX FROM Rooms;
+SHOW INDEX FROM Bookings;
+SHOW INDEX FROM Payments;
+
+
+================
+PART 4  : Views
+=================
+
+CREATE VIEW CustomerBookingDetails AS
+SELECT
+    c.customer_id,
+    c.customer_name,
+    c.phone,
+    r.room_number,
+    r.room_type,
+    b.check_in,
+    b.check_out
+FROM Customers c
+JOIN Bookings b
+    ON c.customer_id = b.customer_id
+JOIN Rooms r
+    ON b.room_id = r.room_id;
+SELECT * FROM CustomerBookingDetails;
+
+CREATE VIEW AvailableRooms AS
+SELECT
+    r.room_id,
+    r.room_number,
+    r.room_type,
+    r.price
+FROM Rooms r
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Bookings b
+    WHERE b.room_id = r.room_id
+      AND CURDATE() >= b.check_in
+      AND CURDATE() < b.check_out
+);
+SELECT * FROM AvailableRooms;
+
+CREATE VIEW BookingPaymentSummary AS
+SELECT
+    b.booking_id,
+    c.customer_name,
+    r.room_number,
+    r.price AS room_price_per_day,
+    b.check_in,
+    b.check_out,
+    COALESCE(SUM(p.amount), 0) AS total_paid
+FROM Bookings b
+JOIN Customers c
+    ON b.customer_id = c.customer_id
+JOIN Rooms r
+    ON b.room_id = r.room_id
+LEFT JOIN Payments p
+    ON b.booking_id = p.booking_id
+GROUP BY
+    b.booking_id,
+    c.customer_name,
+    r.room_number,
+    r.price,
+    b.check_in,
+    b.check_out;
+
+
+=============================
+PART 5  : Stored Procedures
+=============================
+
+    DELIMITER //
+CREATE PROCEDURE GetCustomerBookings(IN p_customer_id INT)
+BEGIN
+    SELECT
+        c.customer_name,
+        c.phone,
+        r.room_number,
+        r.room_type,
+        b.check_in,
+        b.check_out
+    FROM Customers c
+    JOIN Bookings b
+        ON c.customer_id = b.customer_id
+    JOIN Rooms r
+        ON b.room_id = r.room_id
+    WHERE c.customer_id = p_customer_id;
+END //
+DELIMITER ;
+CALL GetCustomerBookings(1);
+
+
+DELIMITER //
+CREATE PROCEDURE CheckAvailableRooms(IN p_date DATE)
+BEGIN
+    SELECT
+        room_id,
+        room_number,
+        room_type,
+        price
+    FROM Rooms
+    WHERE room_id NOT IN (
+        SELECT room_id
+        FROM Bookings
+        WHERE p_date >= check_in
+          AND p_date < check_out
+    );
+END //
+DELIMITER ;
+CALL CheckAvailableRooms('2026-11-01');
+
+
+
+DELIMITER //
+CREATE PROCEDURE GetBookingPaymentDetails(IN p_booking_id INT)
+BEGIN
+    SELECT
+        b.booking_id,
+        c.customer_name,
+        r.room_number,
+        COALESCE(SUM(p.amount), 0) AS total_paid
+    FROM Bookings b
+    JOIN Customers c
+        ON b.customer_id = c.customer_id
+    JOIN Rooms r
+        ON b.room_id = r.room_id
+    LEFT JOIN Payments p
+        ON b.booking_id = p.booking_id
+    WHERE b.booking_id = p_booking_id
+    GROUP BY
+        b.booking_id,
+        c.customer_name,
+        r.room_number;
+END //
+DELIMITER ;
+CALL GetBookingPaymentDetails(1);
+
+
+
+
+===================
+PART 6  : Triggers
+====================
+
+DELIMITER //
+CREATE TRIGGER CheckRoomPrice
+BEFORE INSERT ON Rooms
+FOR EACH ROW
+BEGIN
+    IF NEW.price <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Room price must be greater than zero';
+    END IF;
+END //
+DELIMITER ;
+INSERT INTO Rooms (room_number, room_type, price)
+VALUES (109, 'Deluxe', 2500);
+select*from rooms;
+
+
+
+DELIMITER //
+CREATE TRIGGER CheckBookingDates
+BEFORE INSERT ON Bookings
+FOR EACH ROW
+BEGIN
+    IF NEW.check_out <= NEW.check_in THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Check-out date must be after check-in date';
+    END IF;
+END //
+DELIMITER ;
+INSERT INTO Bookings
+(customer_id, room_id, check_in, check_out)
+VALUES (1, 9, '2026-11-10', '2026-11-12');
+SELECT * FROM Bookings;
+
+
+
+
+DELIMITER //
+CREATE TRIGGER CheckPaymentAmount
+BEFORE INSERT ON Payments
+FOR EACH ROW
+BEGIN
+    IF NEW.amount <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Payment amount must be greater than zero';
+    END IF;
+END //
+DELIMITER ;
+INSERT INTO Payments
+(booking_id, amount, payment_date, payment_method)
+VALUES (1, 2500, CURDATE(), 'Cash');
+SELECT * FROM Payments;
+
+=======================================================
+PART-7 LEVEL 1: SIMPLE QUERIES (Q1–Q4)
+========================================================
+Q1. Display the ID, name, phone number, and email of all customers.
+
+SELECT customer_id, customer_name, phone, email
+FROM Customers;
+
++-------------+---------------+------------+------------------+
+| customer_id | customer_name | phone      | email            |
++-------------+---------------+------------+------------------+
+|           1 | Priya         | 9876501111 | priya@gmail.com  |
+|           2 | Kiran         | 9876502222 | kiran@gmail.com  |
+|           3 | Anjali        | 9876503333 | anjali@gmail.com |
+|           4 | Rahul         | 9876504444 | rahul@gmail.com  |
+|           5 | Sneha         | 9876505555 | sneha@gmail.com  |
+|           6 | Arjun         | 9876506666 | arjun@gmail.com  |
+|           7 | Ravi          | 9876543210 | ravi@gmail.com   |
+|           8 | Suresh        | 9876501234 | suresh@gmail.com |
++-------------+---------------+------------+------------------+
+
+Q2. Display all rooms with their room number, type, and price.
+
+SELECT room_number, room_type, price
+FROM Rooms;
++-------------+-----------+---------+
+| room_number | room_type | price   |
++-------------+-----------+---------+
+|         101 | Single    | 1500.00 |
+|         102 | Double    | 2500.00 |
+|         103 | Deluxe    | 4000.00 |
+|         104 | Single    | 1800.00 |
+|         105 | Double    | 2800.00 |
+|         106 | Deluxe    | 4500.00 |
+|         107 | Suite     | 6000.00 |
+|         108 | Suite     | 6500.00 |
+|         109 | Deluxe    | 2500.00 |
++-------------+-----------+---------+
+9 rows in set (0.00 sec)
+
+Q3. Display bookings from the newest check-in date to the oldest.
+
+SELECT booking_id, customer_id, room_id, check_in, check_out
+FROM Bookings
+ORDER BY check_in DESC;
++------------+-------------+---------+------------+------------+
+| booking_id | customer_id | room_id | check_in   | check_out  |
++------------+-------------+---------+------------+------------+
+|          9 |           1 |       9 | 2026-11-10 | 2026-11-12 |
+|          8 |           8 |       8 | 2026-11-05 | 2026-11-08 |
+|          7 |           7 |       7 | 2026-11-04 | 2026-11-06 |
+|          6 |           6 |       6 | 2026-11-02 | 2026-11-05 |
+|          5 |           5 |       5 | 2026-11-01 | 2026-11-03 |
+|          4 |           4 |       4 | 2026-10-29 | 2026-10-31 |
+|          3 |           3 |       3 | 2026-10-28 | 2026-10-30 |
+|          2 |           2 |       2 | 2026-10-27 | 2026-10-29 |
+|          1 |           1 |       1 | 2026-10-26 | 2026-10-28 |
++------------+-------------+---------+------------+------------+
+9 rows in set (0.00 sec)
+
+Q4. Display rooms whose price is greater than 2000.
+
+SELECT room_number, room_type, price
+FROM Rooms
+WHERE price > 2000
+ORDER BY price DESC;
++-------------+-----------+---------+
+| room_number | room_type | price   |
++-------------+-----------+---------+
+|         108 | Suite     | 6500.00 |
+|         107 | Suite     | 6000.00 |
+|         106 | Deluxe    | 4500.00 |
+|         103 | Deluxe    | 4000.00 |
+|         105 | Double    | 2800.00 |
+|         109 | Deluxe    | 2500.00 |
+|         102 | Double    | 2500.00 |
++-------------+-----------+---------+
+7 rows in set (0.01 sec)
+
+=======================================================
+PART-8 LEVEL 2: INTERMEDIATE QUERIES (Q1–Q3)
+========================================================
+Q1. Display customer names, room numbers, room types, and booking dates.
+
+SELECT c.customer_name, r.room_number, r.room_type, b.check_in, b.check_out
+FROM Customers c
+JOIN Bookings b ON c.customer_id = b.customer_id
+JOIN Rooms r ON b.room_id = r.room_id
+ORDER BY b.check_in;
++---------------+-------------+-----------+------------+------------+
+| customer_name | room_number | room_type | check_in   | check_out  |
++---------------+-------------+-----------+------------+------------+
+| Priya         |         101 | Single    | 2026-10-26 | 2026-10-28 |
+| Kiran         |         102 | Double    | 2026-10-27 | 2026-10-29 |
+| Anjali        |         103 | Deluxe    | 2026-10-28 | 2026-10-30 |
+| Rahul         |         104 | Single    | 2026-10-29 | 2026-10-31 |
+| Sneha         |         105 | Double    | 2026-11-01 | 2026-11-03 |
+| Arjun         |         106 | Deluxe    | 2026-11-02 | 2026-11-05 |
+| Ravi          |         107 | Suite     | 2026-11-04 | 2026-11-06 |
+| Suresh        |         108 | Suite     | 2026-11-05 | 2026-11-08 |
+| Priya         |         109 | Deluxe    | 2026-11-10 | 2026-11-12 |
++---------------+-------------+-----------+------------+------------+
+9 rows in set (0.00 sec)
+
+Q2. Find rooms that have no booking records.
+
+SELECT r.room_id, r.room_number, r.room_type, r.price
+FROM Rooms r
+LEFT JOIN Bookings b ON r.room_id = b.room_id
+WHERE b.booking_id IS NULL;
+Empty set (0.00 sec)
+
+Q3. Count bookings for each customer, including customers with no bookings.
+
+SELECT c.customer_id, c.customer_name, COUNT(b.booking_id) AS total_bookings
+FROM Customers c
+LEFT JOIN Bookings b ON c.customer_id = b.customer_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY total_bookings DESC;
++-------------+---------------+----------------+
+| customer_id | customer_name | total_bookings |
++-------------+---------------+----------------+
+|           1 | Priya         |              2 |
+|           3 | Anjali        |              1 |
+|           6 | Arjun         |              1 |
+|           2 | Kiran         |              1 |
+|           4 | Rahul         |              1 |
+|           7 | Ravi          |              1 |
+|           5 | Sneha         |              1 |
+|           8 | Suresh        |              1 |
++-------------+---------------+----------------+
+8 rows in set (0.00 sec)
+
+=======================================================
+PART-9 LEVEL 3: COMPLEX QUERIES (Q1–Q3)
+========================================================
+Q1. Display booking details, customer contact, room details, and total payment.
+
+SELECT b.booking_id, c.customer_name, c.phone, c.email,
+       r.room_number, r.room_type, r.price AS room_price_per_day,
+       b.check_in, b.check_out, COALESCE(SUM(p.amount), 0) AS total_paid
+FROM Bookings b
+JOIN Customers c ON b.customer_id = c.customer_id
+JOIN Rooms r ON b.room_id = r.room_id
+LEFT JOIN Payments p ON b.booking_id = p.booking_id
+GROUP BY b.booking_id, c.customer_name, c.phone, c.email,
+         r.room_number, r.room_type, r.price, b.check_in, b.check_out
+ORDER BY b.check_in DESC;
++------------+---------------+------------+------------------+-------------+-----------+--------------------+------------+------------+------------+
+| booking_id | customer_name | phone      | email            | room_number | room_type | room_price_per_day | check_in   | check_out  | total_paid |
++------------+---------------+------------+------------------+-------------+-----------+--------------------+------------+------------+------------+
+|          9 | Priya         | 9876501111 | priya@gmail.com  |         109 | Deluxe    |            2500.00 | 2026-11-10 | 2026-11-12 |       0.00 |
+|          8 | Suresh        | 9876501234 | suresh@gmail.com |         108 | Suite     |            6500.00 | 2026-11-05 | 2026-11-08 |   19500.00 |
+|          7 | Ravi          | 9876543210 | ravi@gmail.com   |         107 | Suite     |            6000.00 | 2026-11-04 | 2026-11-06 |   12000.00 |
+|          6 | Arjun         | 9876506666 | arjun@gmail.com  |         106 | Deluxe    |            4500.00 | 2026-11-02 | 2026-11-05 |   13500.00 |
+|          5 | Sneha         | 9876505555 | sneha@gmail.com  |         105 | Double    |            2800.00 | 2026-11-01 | 2026-11-03 |    5600.00 |
+|          4 | Rahul         | 9876504444 | rahul@gmail.com  |         104 | Single    |            1800.00 | 2026-10-29 | 2026-10-31 |    3600.00 |
+|          3 | Anjali        | 9876503333 | anjali@gmail.com |         103 | Deluxe    |            4000.00 | 2026-10-28 | 2026-10-30 |    8000.00 |
+|          2 | Kiran         | 9876502222 | kiran@gmail.com  |         102 | Double    |            2500.00 | 2026-10-27 | 2026-10-29 |    5000.00 |
+|          1 | Priya         | 9876501111 | priya@gmail.com  |         101 | Single    |            1500.00 | 2026-10-26 | 2026-10-28 |    8000.00 |
++------------+---------------+------------+------------------+-------------+-----------+--------------------+------------+------------+------------+
+9 rows in set (0.00 sec)
+
+Q2. Find rooms priced above the average price of all rooms.
+
+SELECT room_number, room_type, price
+FROM Rooms
+WHERE price > (SELECT AVG(price) FROM Rooms)
+ORDER BY price DESC;
++-------------+-----------+---------+
+| room_number | room_type | price   |
++-------------+-----------+---------+
+|         108 | Suite     | 6500.00 |
+|         107 | Suite     | 6000.00 |
+|         106 | Deluxe    | 4500.00 |
+|         103 | Deluxe    | 4000.00 |
++-------------+-----------+---------+
+4 rows in set (0.01 sec)
+
+Q3. Calculate the total amount received through each payment method.
+
+SELECT payment_method, COUNT(payment_id) AS number_of_payments,
+       SUM(amount) AS total_received
+FROM Payments
+GROUP BY payment_method
+ORDER BY total_received DESC;
+
++----------------+--------------------+----------------+
+| payment_method | number_of_payments | total_received |
++----------------+--------------------+----------------+
+| UPI            |                  3 |       30100.00 |
+| Cash           |                  5 |       23600.00 |
+| Card           |                  2 |       21500.00 |
++----------------+--------------------+----------------+
+3 rows in set (0.00 sec)
+
+=============================================================================
+PART-10 dDEMO CALLS
+===============================================================================
+Q1. Test the booking-date trigger with invalid dates (expected to fail).
+
+INSERT INTO Bookings (customer_id, room_id, check_in, check_out)
+VALUES (1, 1, '2026-11-12', '2026-11-10');
+
+ERROR 1644 (45000): Check-out date must be after check-in date
+
+Q2. Display bookings for customer ID 1.
+CALL GetCustomerBookings(1);
++---------------+------------+-------------+-----------+------------+------------+
+| customer_name | phone      | room_number | room_type | check_in   | check_out  |
++---------------+------------+-------------+-----------+------------+------------+
+| Priya         | 9876501111 |         101 | Single    | 2026-10-26 | 2026-10-28 |
+| Priya         | 9876501111 |         109 | Deluxe    | 2026-11-10 | 2026-11-12 |
++---------------+------------+-------------+-----------+------------+------------+
+
+
+
+
